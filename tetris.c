@@ -1,56 +1,162 @@
+/*
+ * tetris.c
+ *
+ * Simulação simples da fila de peças (futuras) do jogo "Tetris Stack".
+ *
+ * Regras implementadas:
+ * - Fila inicializada com um número fixo de peças (QUEUE_CAPACITY).
+ * - Opções: jogar peça (dequeue), inserir nova peça (enqueue se houver espaço), sair.
+ * - Peças geradas automaticamente pela função gerarPeca (tipo 'I','O','T','L' e id único).
+ *
+ * Compilar: gcc -std=c11 -O2 -Wall -Wextra -o tetris tetris.c
+ */
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <time.h>
+#include <string.h>
 
-// Desafio Tetris Stack
-// Tema 3 - Integração de Fila e Pilha
-// Este código inicial serve como base para o desenvolvimento do sistema de controle de peças.
-// Use as instruções de cada nível para desenvolver o desafio.
+#define QUEUE_CAPACITY 5   /* Capacidade fixa da fila inicial */
+#define INPUT_BUFFER 64
 
-int main() {
+/* Estrutura que representa uma peça */
+typedef struct {
+    char nome; /* 'I', 'O', 'T', 'L' */
+    int id;    /* identificador único */
+} Peca;
 
-    // 🧩 Nível Novato: Fila de Peças Futuras
-    //
-    // - Crie uma struct Peca com os campos: tipo (char) e id (int).
-    // - Implemente uma fila circular com capacidade para 5 peças.
-    // - Crie funções como inicializarFila(), enqueue(), dequeue(), filaCheia(), filaVazia().
-    // - Cada peça deve ser gerada automaticamente com um tipo aleatório e id sequencial.
-    // - Exiba a fila após cada ação com uma função mostrarFila().
-    // - Use um menu com opções como:
-    //      1 - Jogar peça (remover da frente)
-    //      0 - Sair
-    // - A cada remoção, insira uma nova peça ao final da fila.
+/* Estrutura da fila circular de peças */
+typedef struct {
+    Peca buffer[QUEUE_CAPACITY];
+    int head;   /* índice do elemento da frente */
+    int size;   /* número de elementos atuais */
+} FilaPecas;
 
+/* Gera uma peça com tipo aleatório e id fornecido */
+Peca gerarPeca(int id) {
+    const char tipos[] = {'I','O','T','L'};
+    Peca p;
+    p.nome = tipos[rand() % (sizeof(tipos) / sizeof(tipos[0]))];
+    p.id = id;
+    return p;
+}
 
+/* Inicializa a fila vazia */
+void inicializarFila(FilaPecas *fila) {
+    fila->head = 0;
+    fila->size = 0;
+}
 
-    // 🧠 Nível Aventureiro: Adição da Pilha de Reserva
-    //
-    // - Implemente uma pilha linear com capacidade para 3 peças.
-    // - Crie funções como inicializarPilha(), push(), pop(), pilhaCheia(), pilhaVazia().
-    // - Permita enviar uma peça da fila para a pilha (reserva).
-    // - Crie um menu com opção:
-    //      2 - Enviar peça da fila para a reserva (pilha)
-    //      3 - Usar peça da reserva (remover do topo da pilha)
-    // - Exiba a pilha junto com a fila após cada ação com mostrarPilha().
-    // - Mantenha a fila sempre com 5 peças (repondo com gerarPeca()).
+/* Verifica se a fila está vazia */
+bool filaVazia(const FilaPecas *fila) {
+    return fila->size == 0;
+}
 
+/* Verifica se a fila está cheia */
+bool filaCheia(const FilaPecas *fila) {
+    return fila->size == QUEUE_CAPACITY;
+}
 
-    // 🔄 Nível Mestre: Integração Estratégica entre Fila e Pilha
-    //
-    // - Implemente interações avançadas entre as estruturas:
-    //      4 - Trocar a peça da frente da fila com o topo da pilha
-    //      5 - Trocar os 3 primeiros da fila com as 3 peças da pilha
-    // - Para a opção 4:
-    //      Verifique se a fila não está vazia e a pilha tem ao menos 1 peça.
-    //      Troque os elementos diretamente nos arrays.
-    // - Para a opção 5:
-    //      Verifique se a pilha tem exatamente 3 peças e a fila ao menos 3.
-    //      Use a lógica de índice circular para acessar os primeiros da fila.
-    // - Sempre valide as condições antes da troca e informe mensagens claras ao usuário.
-    // - Use funções auxiliares, se quiser, para modularizar a lógica de troca.
-    // - O menu deve ficar assim:
-    //      4 - Trocar peça da frente com topo da pilha
-    //      5 - Trocar 3 primeiros da fila com os 3 da pilha
+/* Enfileira uma peça; retorna true se sucesso */
+bool enqueue(FilaPecas *fila, Peca p) {
+    if (filaCheia(fila)) return false;
+    int pos = (fila->head + fila->size) % QUEUE_CAPACITY;
+    fila->buffer[pos] = p;
+    fila->size++;
+    return true;
+}
 
+/* Desenfileira a peça da frente; retorna true se sucesso e armazena em out */
+bool dequeue(FilaPecas *fila, Peca *out) {
+    if (filaVazia(fila)) return false;
+    *out = fila->buffer[fila->head];
+    fila->head = (fila->head + 1) % QUEUE_CAPACITY;
+    fila->size--;
+    return true;
+}
+
+/* Exibe o estado atual da fila de forma clara e legível */
+void mostrarFila(const FilaPecas *fila) {
+    printf("\nEstado atual da fila (capacidade %d):\n", QUEUE_CAPACITY);
+    if (filaVazia(fila)) {
+        printf("  [vazia]\n\n");
+        return;
+    }
+    printf("  Índice  Tipo  ID\n");
+    for (int i = 0; i < fila->size; ++i) {
+        int idx = (fila->head + i) % QUEUE_CAPACITY;
+        printf("  %5d   %4c  %4d\n", i, fila->buffer[idx].nome, fila->buffer[idx].id);
+    }
+    printf("\n");
+}
+
+/* Lê uma opção do usuário com tratamento simples de entrada */
+int lerOpcao(void) {
+    char linha[INPUT_BUFFER];
+    if (!fgets(linha, sizeof(linha), stdin)) return -1;
+    int opc = 0;
+    if (sscanf(linha, "%d", &opc) != 1) return -1;
+    return opc;
+}
+
+int main(void) {
+    /* Semente para geração aleatória de tipos */
+    srand((unsigned int) time(NULL));
+
+    FilaPecas fila;
+    inicializarFila(&fila);
+
+    int proximoId = 1;
+
+    /* Inicializa a fila com QUEUE_CAPACITY peças geradas automaticamente */
+    for (int i = 0; i < QUEUE_CAPACITY; ++i) {
+        Peca p = gerarPeca(proximoId++);
+        enqueue(&fila, p);
+    }
+
+    printf("Tetris Stack - Simulador da fila de peças\n");
+    printf("Fila inicializada com %d peças.\n", QUEUE_CAPACITY);
+    mostrarFila(&fila);
+
+    /* Loop do menu */
+    while (1) {
+        printf("Menu:\n");
+        printf("  1 - Jogar peça (remover da frente)\n");
+        printf("  2 - Inserir nova peça ao final (se houver espaço)\n");
+        printf("  3 - Sair\n");
+        printf("Escolha uma opção: ");
+
+        int opc = lerOpcao();
+        if (opc == -1) {
+            printf("Entrada inválida. Tente novamente.\n\n");
+            continue;
+        }
+
+        if (opc == 1) {
+            Peca removida;
+            if (dequeue(&fila, &removida)) {
+                printf("\nPeça jogada: Tipo '%c'  ID %d\n", removida.nome, removida.id);
+            } else {
+                printf("\nA fila está vazia. Não há peça para jogar.\n");
+            }
+            mostrarFila(&fila);
+        } else if (opc == 2) {
+            if (filaCheia(&fila)) {
+                printf("\nA fila está cheia. Não é possível inserir nova peça.\n");
+            } else {
+                Peca nova = gerarPeca(proximoId++);
+                enqueue(&fila, nova);
+                printf("\nNova peça inserida: Tipo '%c'  ID %d\n", nova.nome, nova.id);
+            }
+            mostrarFila(&fila);
+        } else if (opc == 3) {
+            printf("\nSaindo. Até logo.\n");
+            break;
+        } else {
+            printf("Opção inválida. Escolha 1, 2 ou 3.\n\n");
+        }
+    }
 
     return 0;
 }
-
